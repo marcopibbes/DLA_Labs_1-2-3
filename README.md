@@ -46,7 +46,7 @@ cd LabDLA
 
 ### 2. Set Up the Python Environment
 
-> ⚠️ **Note:** Due to compatibility issues between libraries (especially in Lab 2), you may need separate environments.
+> ⚠️ **Note:** Due to compatibility issues between libraries, you may need separate environments.
 
 #### Using Conda (Recommended)
 
