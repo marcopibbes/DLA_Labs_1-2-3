@@ -40,7 +40,7 @@ This configuration allows for fast model training and smooth interaction with la
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/marcopibbes/DLA_labs
+git clone https://github.com/marcopibbes/DLA_labs_1-2-3
 cd LabDLA
 ```
 
