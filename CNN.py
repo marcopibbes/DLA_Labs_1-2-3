@@ -17,6 +17,24 @@ from torch.nn import MaxPool2d
 from torch.nn import AvgPool2d
 from torchvision.models.resnet import BasicBlock, Bottleneck
 
+
+'''Why this implementation? 
+
+Modularity and flexibility:
+Each layer is defined by a dictionary of parameters, allowing you to build different architectures without rewriting code.
+
+Reuse and customization:
+The code supports custom weight initialization, different activation types, batch norm, dropout, pooling, and various convolution configurations.
+
+Residual network support:
+ResCNN allows you to build ResNet-like architectures, which are essential for deep and performant CNNs.
+
+Easy integration with MLPs:
+CNNs often extract features, while MLP classifies or regresses; here you can easily combine both.
+
+Use of native PyTorch functions:
+The use of nn.Sequential, nn.ModuleList, and PyTorch layers allows for automatic optimizations and compatibility with other modules.
+'''
 class CNN(nn.Module):
     def __init__(
         self,
@@ -33,7 +51,19 @@ class CNN(nn.Module):
         if mlp:
             self.blocks.append(mlp)
 
-        
+
+    ''' A sequential module is built for each convolutional layer with:
+
+Configurable 2D convolution (kernel, stride, padding, etc.).
+Customizable weight initialization.
+Batch normalization to stabilize and accelerate training.
+Activation (default ReLU).
+2D dropout for regularization (at spatial level).
+Optional pooling to reduce spatial dimension (e.g. MaxPool2d or AvgPool2d).
+The number of input channels for the next layer is updated.
+
+This structure is flexible and allows to easily define CNNs of different shapes with variable parameters.'''
+       
     def _build_blocks(self):
         blocks = nn.ModuleList()
 
@@ -112,6 +142,10 @@ class CNN(nn.Module):
             in_channels = out_channels
 
         return blocks
+    
+
+    '''Calculates the final size of the output tensor after passing a sample tensor of batch size 1 through all blocks.
+    Useful to know how many output elements (neurons) to connect a MLP or fully connected layer.'''
 
     def get_output_size(self):
         x = torch.zeros(1, *self.input_shape)
@@ -121,9 +155,16 @@ class CNN(nn.Module):
         
         return x.numel()
 
+
+    '''Allows to attach (add) a fully connected (MLP) module to the end of the CNN.
+    Useful for creating hybrid CNN + MLP architectures (e.g. CNN for feature extraction + MLP for classification).'''
+
     def attach_mlp(self, mlp):
         self.blocks.append(mlp)
 
+
+    '''Passes the input x through all convolutional blocks (and optionally the MLP).
+    Returns the final output.'''
     def forward(self, x):
         for block in self.blocks:
             x = block(x)
@@ -131,6 +172,14 @@ class CNN(nn.Module):
 
 ##############################################################################
 
+
+'''Implements a CNN with residual blocks (like ResNet).
+
+res_layers defines the parameters of each residual block.
+block_type can be either BasicBlock or Bottleneck (standard residual block types).
+An AdaptiveAvgPool2d is inserted to spatially aggregate the output into a fixed size (1x1).
+
+A final MLP can be optionally added.'''
 class ResCNN(nn.Module):
     def __init__(
         self,
@@ -155,6 +204,16 @@ class ResCNN(nn.Module):
         if mlp:
             self.blocks.append(mlp)
 
+
+
+
+    '''For each residual layer:
+Check if a downsample is needed (e.g. when dimension changes or stride > 1), using a 1x1 conv + batch norm to align dimensions.
+Build a residual block (e.g. BasicBlock or Bottleneck) with the passed parameters.
+Optionally add 2D dropout and pooling.
+Update input channels for the next block considering the expansion of the residual block.
+
+This structure replicates the flexibility and power of ResNets, which use residual jumps to improve the training of very deep CNNs.'''
     def _build_blocks(self):
         blocks = nn.ModuleList()
         in_channels = self.input_shape[0]

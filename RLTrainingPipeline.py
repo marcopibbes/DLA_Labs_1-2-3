@@ -13,8 +13,12 @@ import inspect
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+'''The RLTrainingPipeline class extends a basic training pipeline (BaseTrainingPipeline), adapting it to reinforcement learning (RL).'''
 class RLTrainingPipeline(BaseTrainingPipeline):
+
+    '''Constructor: Initializes callback hooks for episodes and steps.
+Passes policy (RL model) to superclass.
+Sets the function to select actions, defaulting to _default_select_action.'''
     def __init__(
             self,
             policy,
@@ -33,9 +37,8 @@ class RLTrainingPipeline(BaseTrainingPipeline):
         super().__init__(model = policy, **base_kwargs)
             
         self.select_action_fn = select_action_fn if select_action_fn is not None else self._default_select_action
-
-    #make the aliases
-    #model will become policy
+    
+    '''Renames for RL clarity (e.g. model → policy, epoch → episode, batch → step).'''
     @property
     def policy(self):
         return self.model
@@ -63,6 +66,8 @@ class RLTrainingPipeline(BaseTrainingPipeline):
         self.current_batch = value
     ###########################################
 
+
+    '''Initialize history dictionary to store training and evaluation metrics.'''
     def _init_history(self):
         self.history = {
             "train_raw_return" : [], 
@@ -77,6 +82,9 @@ class RLTrainingPipeline(BaseTrainingPipeline):
 
         super()._init_history()
 
+
+
+    '''Default action selection function: takes observation, computes logits, samples action from distribution, and returns action + log_prob.'''
     def _default_select_action(self, obs):
         
         logits = self.policy(obs.to(self.device))
@@ -106,6 +114,8 @@ class RLTrainingPipeline(BaseTrainingPipeline):
 
         return (act.item(), log_prob.reshape(1))
 
+
+    '''Calculating reward-to-go returns for policy gradients.'''
     def _compute_returns(self, rewards, gamma):
         returns = []
         discounted_sum = 0
@@ -113,6 +123,13 @@ class RLTrainingPipeline(BaseTrainingPipeline):
             discounted_sum = r + gamma * discounted_sum
             returns.insert(0, discounted_sum)
         return np.array(returns).copy()
+    
+
+
+    '''Runs an episode in the env (RL environment) for max maxlen steps.
+Stores observations, actions, log_prob, rewards.
+Uses callbacks for extensibility.
+Supports gradient training or gradient-free evaluation.'''
 
     def _run_episode(self, env, maxlen = 500):
 
@@ -161,6 +178,12 @@ class RLTrainingPipeline(BaseTrainingPipeline):
 
         return obss_list, acts_list, torch.cat(log_probs_list) if log_probs_list else torch.empty(0), rewards_list
 
+
+
+
+    '''Evaluate the policy by running multiple episodes.
+Calculate average reward and average duration.
+Use callbacks for logging integration or other.'''
     def evaluate(self, env, eval_episodes, maxlen = 500):
         self._execute_callbacks('on_eval_begin', env = env, n_eval_episodes = eval_episodes, maxlen = maxlen)
 
@@ -185,6 +208,16 @@ class RLTrainingPipeline(BaseTrainingPipeline):
 
         return avg_reward, avg_length
 
+
+
+    '''Main function to train policy with REINFORCE algorithm:
+
+Loop over n_episodes.
+Execute episode, compute policy loss with reward-to-go (with or without baseline).
+Backpropagation and optimization.
+Periodic evaluations.
+Early stopping and best model management.
+Extensibility callback.'''
     def reinforce(
         self,
         env,

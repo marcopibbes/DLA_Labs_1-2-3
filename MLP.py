@@ -11,6 +11,15 @@ from torch.nn import Flatten
 from torch.nn import Identity
 from torch.nn import ModuleList
 
+'''Why this MLP & ResMLP implementation?
+
+The code creates a highly configurable MLP with customizable bias, initializations, batch norms, activations, and dropouts.
+ResMLP extends MLP to add residual skip connections, which are essential for training deeper and more stable models.
+Modular design and use of normalized lists allows for flexibility and reusability.
+Projection functions for skip connections solve problems of different sizes in residual inputs.
+Using PyTorch with Sequential and ModuleList blocks allows for clean and easily expandable models.
+Intelligently handles the use of bias when there is batch norm (avoiding redundancies).'''
+
 class MLP(nn.Module):
     def __init__(
         self,
@@ -60,6 +69,16 @@ class MLP(nn.Module):
 
         self.blocks = self._build_blocks()
 
+
+
+    '''
+   Helper function to standardize parameters.
+
+If x is None, creates a long list size with default values.
+If x is a single value, creates a list with that value repeated size times.
+If x is a list, extends it with default values ​​up to length size.
+It is used to elegantly manage parameter flexibility.
+    '''
     def _normalize_arguments(self, x, size, default = None):
         l = []
         if x is None: #we are not using "not x" couse if x is False and default value is True it would create [True] * size instead of [False] * size
@@ -72,6 +91,22 @@ class MLP(nn.Module):
             l = x + [default] * to_fill
         return l
 
+
+    
+    '''
+   Builds a block list (nn.ModuleList) for each linear layer.
+
+For each layer:
+Creates nn.Linear with its inputs/outputs.
+Applies the initialization function (if defined).
+Adds BatchNorm1d if required.
+Adds the activation function (e.g. ReLU).
+Adds the dropout.
+All these steps are concatenated in a nn.Sequential.
+Linear layers do not use bias if BatchNorm is active, to avoid redundancies.
+
+Reason: create a modular structure, easily extendable and customizable.
+    '''
     def _build_blocks(self):
         blocks = nn.ModuleList()
 
@@ -100,8 +135,14 @@ class MLP(nn.Module):
             blocks.append(nn.Sequential(*layers))
 
         return blocks
+    
 
-    def forward(self, x):
+'''
+First, if x has more than 2 dimensions (e.g. 4D images), flatten it with nn.Flatten.
+Pass the input sequentially through all the constructed blocks.
+Return the final output.
+'''
+def forward(self, x):
         if x.ndim > 2:
             x = self.flatten(x)
 
@@ -112,6 +153,12 @@ class MLP(nn.Module):
 
 ##############################################################################
 
+
+'''ResMLP can receive an already instantiated mlp object or a layer_sizes list.
+If it receives an existing MLP, it copies its parameters as default.
+skip_connections: list of tuples (from_layer_idx, to_layer_idx) that define the residual connections.
+If not specified, the default skip connection is from input (0) to output (n_linear - 1).
+Each skip connection can have an associated projection function (projection_funcs), useful if the input and output sizes of the skip do not match.'''
 class ResMLP(MLP):
     def __init__(
         self,
@@ -157,6 +204,10 @@ class ResMLP(MLP):
         if not skip_connections: 
             skip_connections = [(0, self.n_linear - 1)] #skip from input to output by default
 
+        '''Ensure skip connection indices are valid and consistent.
+
+        from_idx must be less than or equal to to_idx to avoid loops or errors.'''
+
         assert isinstance(skip_connections, (list, tuple)), "skip_connections must be a list or tuple of (from, to) tuples"
         for from_idx, to_idx in skip_connections:
             assert 0 <= from_idx <= to_idx < self.n_linear, f"Invalid skip connection indices ({from_idx}, {to_idx}). Must satisfy 0 <= from <= to < {n_linear}"
@@ -182,7 +233,14 @@ class ResMLP(MLP):
                 self.projections.append(nn.Linear(layer_sizes[from_idx], layer_sizes[to_idx], bias=False))
             else:
                 self.projections.append(nn.Identity())
-        
+
+
+    '''Flattens input if multidimensional.
+
+Stores the intermediate output of each layer for skip connections.
+When it arrives at the target index to_idx of a skip connection, it sums the current output with the projected residual.
+Returns the final output with the residual sums performed.
+Reason: Residual connections help train deep networks by improving gradient flow and allowing to "skip" layers, a concept inspired by ResNets.'''    
     def forward(self, x):
         if x.ndim > 2:
             x = self.flatten(x)

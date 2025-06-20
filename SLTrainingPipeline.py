@@ -13,7 +13,15 @@ import inspect
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+'''Definition of the SLTrainingPipeline class which extends the basic pipeline for supervised training.'''
 class SLTrainingPipeline(BaseTrainingPipeline):
+
+    '''Constructor:
+Initializes specific callbacks for SL training (e.g. events for start/end of epoch, batch, after backward).
+Calls superclass constructor with base parameters.
+Sets loss function (criterion), default CrossEntropyLoss.
+If loss supports .to(device), moves it to device (GPU/CPU).'''
     def __init__(
             self,
             *,
@@ -36,6 +44,11 @@ class SLTrainingPipeline(BaseTrainingPipeline):
         if hasattr(self.criterion, "to"):
             self.criterion.to(self.device)
 
+
+
+    '''Initializes the history data structure to store training and validation metrics.
+Keeps track of loss and other user-defined metrics.
+Calls the superclass for any additional initializations'''
     def _init_history(self):
         self.history = {'train_loss': [], 'val_loss': []} #default always tracked metrics that we want to monitor
         for m in self.metrics.keys():
@@ -44,6 +57,21 @@ class SLTrainingPipeline(BaseTrainingPipeline):
 
         super()._init_history()
 
+
+
+    '''Main function that runs a training or validation epoch on a data_loader.
+Initializes accumulations for loss and metrics.
+Correctly handles training or evaluation mode (enable/disable gradients).
+
+For each batch:
+Load batch of data to device.
+Callback before batch.
+Forward pass to get logits.
+Loss calculation.
+If training, backward + optimizer step.
+Update metrics.
+Callback after batch.
+Returns average loss and metrics weighted by number of samples.'''
     def _run_epoch(self, data_loader, verbose = True):
         tot_loss = 0.0
         tot_metrics = {m: 0.0 for m in self.metrics.keys()}
@@ -99,6 +127,15 @@ class SLTrainingPipeline(BaseTrainingPipeline):
 
         return results
 
+
+
+    '''Main method for multi-epoch SL training:
+Handles validation, save best model, early stopping with patience.
+Prints metrics to console if verbose.
+Multi-step callback for extensibility.
+Handles LR scheduler and history.
+
+At the end loads the best model.'''
     def fit(
         self,
         epochs,
@@ -181,6 +218,11 @@ class SLTrainingPipeline(BaseTrainingPipeline):
             self._cleanup_and_reload_best()         
 
         return self.history
+    
+
+    '''Method to evaluate the model on a test set.
+Use _run_epoch in eval mode (no grad).
+Print metrics and return dictionary results.'''
 
     def evaluate(self, test_loader, verbose = True):
 
@@ -198,10 +240,16 @@ class SLTrainingPipeline(BaseTrainingPipeline):
 
         return results
 
+
+    '''Method to add the internal state of the criterion (the loss function) to the states dictionary to be saved.
+Useful if the loss has internal parameters (e.g. for criteria with states or buffers), to be able to save them and then restore them.'''
     def _add_states(self, states):
         if hasattr(self.criterion, 'state_dict'):
             states['criterion_state_dict'] = self.criterion.state_dict()
     
+
+    '''Method to load the criterion state from a saved states dictionary.
+Restores the loss so that training or evaluation can be resumed consistently.'''
     def _load_states(self, states):
         if 'criterion_state_dict' in states and hasattr(self.criterion, 'load_state_dict'):
             self.criterion.load_state_dict(states['criterion_state_dict'])
