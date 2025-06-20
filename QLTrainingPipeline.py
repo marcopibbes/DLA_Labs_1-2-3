@@ -15,7 +15,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 
+
+'''This QLTrainingPipeline class extends the BaseTrainingPipeline base class to implement a training pipeline specific for Q-Learning / Deep Q-Network (DQN).
+     It is built to train RL agents with Q-learning policy based on neural networks.'''
+
 class QLTrainingPipeline(BaseTrainingPipeline):
+
+    '''Constructor: Set a series of callbacks for specific RL training events.
+Call the base constructor with policy as the template.
+Set the action selection function, defaulting to epsilon-greedy.
+Create a replay buffer limited to buffer_size.
+Set eps to 1 (maximum exploration).
+Create a target network as a copy of the policy, disabling training.'''
     def __init__(
             self,
             policy,
@@ -44,8 +55,10 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         self.target_net = copy.deepcopy(self.policy)
         self.target_net.train(False)
 
-    #make the aliases
-    #model will become policy
+    ''' Rename inherited properties from BaseTrainingPipeline to fit RL terminology:
+model becomes policy
+current_epoch becomes current_episode
+current_batch becomes current_step'''
     @property
     def policy(self):
         return self.model
@@ -73,6 +86,9 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         self.current_batch = value
     ###########################################
 
+
+    '''Initializes a dictionary to keep track of typical RL metrics such as returns, episode lengths, and loss Q, while also adding metrics inherited from the base class.'''
+
     def _init_history(self):
         self.history = {
             "train_raw_return" : [], 
@@ -88,6 +104,12 @@ class QLTrainingPipeline(BaseTrainingPipeline):
 
         super()._init_history()
 
+
+
+    '''Computes Q-values ​​for the observed state.
+With probability eps it chooses a random action (exploration).
+Otherwise it chooses action with maximum Q-value (exploitation).
+Returns the action and the corresponding Q-value.'''
     def _default_select_action(self, obs):
         q_values = self.policy(obs.to(self.device))
 
@@ -101,6 +123,10 @@ class QLTrainingPipeline(BaseTrainingPipeline):
             exp = q_values[act].item() if q_values.dim() == 1 else q_values[0, act].item()
         
         return act, exp
+    
+
+
+    '''It takes a random batch of transitions from the buffer and converts them into PyTorch tensors, ready for training.'''
 
     def _sample_batch(self, batch_size):
         batch = random.sample(self.replay_buffer, batch_size)
@@ -113,6 +139,16 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         dones = torch.tensor(dones, dtype=torch.bool)
         
         return states, actions, rewards, next_states, dones
+    
+
+
+    '''Reset environment and initialize variables to track return and loss.
+Loop through steps until episode ends or maxlen is exceeded.
+If training, update step, execute callback, add transition to replay buffer.
+If buffer has enough examples, sample batch and compute target Q using target net.
+Compute MSE loss and update policy network weights with backprop.
+Log episode loss.
+Return total return, episode length and list of losses.'''
 
     def _run_episode(self, env, batch_size = 32, gamma = 0.99, maxlen = 500):
         is_training = self.policy.training
@@ -180,6 +216,14 @@ class QLTrainingPipeline(BaseTrainingPipeline):
                 episode_length += 1
 
         return episode_return, episode_length, episode_loss
+    
+
+
+
+    '''Disables exploration and training mode.
+Runs eval_episodes episodes with the current policy.
+Calculates and returns the average reward and average episode length.
+Runs start and end evaluation callbacks.'''
 
     def evaluate(self, env, eval_episodes, maxlen = 500):
         self._execute_callbacks('on_eval_begin', env = env, n_eval_episodes = eval_episodes, maxlen = maxlen)
@@ -209,6 +253,15 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         self.eps = self.old_eps  # restore exploration rate
 
         return avg_reward, avg_length
+    
+
+
+
+    '''Implements the full episodic DQN training algorithm.
+Handles epsilon decay, target network update, periodic evaluation and early stopping.
+Records metrics and updates TensorBoard.
+Supports callbacks on various events (episode start/end, step, evaluation, target update).
+Also handles manual abort and checkpoint'''
 
     def dqn(
         self,
@@ -231,7 +284,7 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         if eval_every_n_episodes is not None and eval_every_n_episodes <= 0:
             raise ValueError("eval_every_n_episodes must be None or a positive integer.")
         
-        #bunch of warnings 
+        #some warnings 
         if self.lr_scheduler and hasattr(self.lr_scheduler, 'mode') and self.lr_scheduler.mode != monitor_mode:
             self.lr_scheduler.mode = monitor_mode
             print("warning: lr scheduler mode was changed to align with monitor mode")
@@ -323,6 +376,13 @@ class QLTrainingPipeline(BaseTrainingPipeline):
         return self.history
 
     fit = dqn
+
+
+
+
+
+    '''Extends the methods for saving/loading checkpoints with specific information: current epsilon, target net state, replay buffer.'''
+    
 
     def _add_states(self, states):
         states['eps'] = self.eps

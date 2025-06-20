@@ -64,7 +64,7 @@ Sets the function to select actions, defaulting to _default_select_action.'''
     @current_step.setter
     def current_step(self, value):
         self.current_batch = value
-    ###########################################
+  
 
 
     '''Initialize history dictionary to store training and evaluation metrics.'''

@@ -137,12 +137,12 @@ Reason: create a modular structure, easily extendable and customizable.
         return blocks
     
 
-'''
+    '''
 First, if x has more than 2 dimensions (e.g. 4D images), flatten it with nn.Flatten.
 Pass the input sequentially through all the constructed blocks.
 Return the final output.
 '''
-def forward(self, x):
+    def forward(self, x):
         if x.ndim > 2:
             x = self.flatten(x)
 
@@ -210,7 +210,7 @@ class ResMLP(MLP):
 
         assert isinstance(skip_connections, (list, tuple)), "skip_connections must be a list or tuple of (from, to) tuples"
         for from_idx, to_idx in skip_connections:
-            assert 0 <= from_idx <= to_idx < self.n_linear, f"Invalid skip connection indices ({from_idx}, {to_idx}). Must satisfy 0 <= from <= to < {n_linear}"
+            assert 0 <= from_idx <= to_idx < self.n_linear, f"Invalid skip connection indices ({from_idx}, {to_idx}). Must satisfy 0 <= from <= to < {self.n_linear}"
 
         self.skip_connections = skip_connections
         n_skips = len(self.skip_connections)

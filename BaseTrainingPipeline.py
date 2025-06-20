@@ -145,7 +145,7 @@ class BaseTrainingPipeline:
     def plot(self):
         assert self.history and len(self.history) >= 1, "must call fit() first, no history to plot"
 
-        #checking history keys, if the have common sufixes than add to same plot (like for train_loss and val_loss)
+        #checking history keys, if they have common suffixes than add to same plot (like for train_loss and val_loss)
         #if instead they are different (like for loss and accuracy) than add to different plots
         #we will aspect that metrics to have the following structure {stage}_{metric}
  

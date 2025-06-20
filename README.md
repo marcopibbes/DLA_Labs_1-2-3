@@ -64,7 +64,7 @@ conda install --file requirements.txt -c conda-forge -y
 ---
 
 ## 📁 Repository Structure
-Every file is accurately commented in order to give the reader a clear view of the phases of the experiments!
+Every file is accurately commented (+ additional Markdown) in order to give the reader a clear view of the phases of the experiments!
 
 ```text
 .
@@ -132,3 +132,10 @@ Some dependencies are version-pinned for compatibility and were installed via `c
 - Expect first runs to download datasets and pretrained weights.
 - Some visualizations (e.g., Lab 2) may require `pygame`.
 - Tested across Python 3.9 and 3.12.8 environments.
+
+## 💡 How did i learn more?
+
+- I found this strange yet useful method: autogenerating some comments using Copilot before the warmup code.
+- This helped me to understand more about the context and some choices.
+- Obviously, I made sure to have the most solid background possible.
+- Told this both for transparency and to be helpful to people like me 
