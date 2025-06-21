@@ -13,6 +13,12 @@ import matplotlib.pyplot as plt
 
 
 class BaseTrainingPipeline:
+
+
+    '''Constructor: Initializes the training pipeline with a model, optimizer, scheduler, device, metrics, logging options, and callbacks.
+Centralizes configuration and sets up everything needed for a full training loop with optional checkpointing and logging.
+
+'''
     def __init__(
             self,
             
@@ -31,6 +37,11 @@ class BaseTrainingPipeline:
             callbacks = {}
         ):
 
+
+
+        '''Store the model and moves it to the specified device.
+    Ensure the model is on the correct device (CPU/GPU) for training.
+'''
         self._model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
@@ -47,7 +58,11 @@ class BaseTrainingPipeline:
         self.best_score = None
         self.best_state = None
 
-        #checkpoints
+
+
+        '''Set up checkpoint file paths and optionally resumes training from saved checkpoints.
+    For safe interruptions and resuming training from a recent state'''
+        #Checkpoints
         self.run_id = run_id or f'{self.model.__class__.__name__}_{time.strftime("%Y%m%d-%H%M%S")}'
         self.checkpoint_path = None
         self.interrupted_checkpoint_path = None
@@ -67,7 +82,7 @@ class BaseTrainingPipeline:
                 elif os.path.exists(self.checkpoint_path):
                     self.load(interrupted = False)
 
-        #tensorboard
+        #Tensorboard setup
         self.log_dir = None
         self.writer = None
 
@@ -76,6 +91,12 @@ class BaseTrainingPipeline:
             self.log_dir = os.path.join(log_dir, self.run_id)
             self.writer = SummaryWriter(log_dir = self.log_dir)
 
+
+
+
+        '''Define default lifecycle phases and install user-provided callbacks.
+ Enables custom behavior at specific training phases.
+'''
         #callbacks
         base_callbacks = {
             'on_init': [],
@@ -103,8 +124,8 @@ class BaseTrainingPipeline:
 
         self._execute_callbacks('on_init')
 
-    #making some aliases for convenience 
-    #model will become policy in RL pipeline
+    #Making some aliases for convenience 
+    #Example: Model will become policy in RL pipeline
     @property
     def model(self):
         return self._model
@@ -113,7 +134,7 @@ class BaseTrainingPipeline:
     def model(self, value):
         self._model = value
 
-    #current epoch will become current episode
+    #Current epoch will become current episode
     @property
     def current_epoch(self):
         return self._current_epoch
@@ -122,7 +143,7 @@ class BaseTrainingPipeline:
     def current_epoch(self, value):
         self._current_epoch = value
 
-    #current batch will become current step
+    #Current batch will become current step
     @property 
     def current_batch(self):
         return self._current_batch
@@ -130,7 +151,7 @@ class BaseTrainingPipeline:
     @current_batch.setter
     def current_batch(self, value):
         self._current_batch = value
-    ###########################################
+   
 
     def _execute_callbacks(self, phase, **context):
         assert phase in self.callbacks, f"phase '{phase}' not supported" #probably not needed to do this check at runtime
@@ -145,9 +166,9 @@ class BaseTrainingPipeline:
     def plot(self):
         assert self.history and len(self.history) >= 1, "must call fit() first, no history to plot"
 
-        #checking history keys, if they have common suffixes than add to same plot (like for train_loss and val_loss)
-        #if instead they are different (like for loss and accuracy) than add to different plots
-        #we will aspect that metrics to have the following structure {stage}_{metric}
+        '''Checking history keys, if they have common suffixes than add to same plot (like for train_loss and val_loss),
+        if they are different (like for loss and accuracy) than add to different plots.
+        We will expect that metrics to have the following structure {stage}_{metric}'''
  
         #make the groups to plot together the same metrics
         groups = {}
@@ -237,6 +258,9 @@ class BaseTrainingPipeline:
     def get_callbacks_data(self):
         return self.callbacks_data
 
+
+    '''Checks if the current model is better than the best seen so far and updates accordingly.
+    Used for early stopping and to ensure the best model is saved.'''
     def _handle_best(self, results, metric_to_monitor, monitor_mode):
         current_value = results.get(metric_to_monitor)
 
@@ -275,14 +299,14 @@ class BaseTrainingPipeline:
         self.history["lr"].append(new_lr)
 
     def _handle_history_and_log(self, results, step):
-        #history
+        #History
         for key, value in results.items():
             if key in self.history:
                 self.history[key].append(value)
             else:
                 self.history[key] = [value]
         
-        #tensorboard
+        #Tensorboard
         if self.writer:
             for key, value in results.items():
                 if not isinstance(value, (np.ndarray, list)) and not np.isnan(value):
@@ -290,7 +314,7 @@ class BaseTrainingPipeline:
             self.writer.flush()
 
     def _cleanup_and_reload_best(self):
-        #final save to have the whole history even if training stops early
+        #Final save to have the whole history 
         if self.checkpoint_path:
             self.save()
 
